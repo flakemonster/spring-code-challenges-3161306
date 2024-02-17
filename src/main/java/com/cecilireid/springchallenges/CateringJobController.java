@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Optional;
 
 
 @RestController
@@ -19,6 +20,8 @@ public class CateringJobController {
 
     public CateringJobController(CateringJobRepository cateringJobRepository, WebClient.Builder webClientBuilder) {
         this.cateringJobRepository = cateringJobRepository;
+        client = webClientBuilder.baseUrl(IMAGE_API).build();
+
     }
 
     @GetMapping
@@ -37,23 +40,54 @@ public class CateringJobController {
         }
     }
 
-    public List<CateringJob> getCateringJobsByStatus(Status status) {
-        return null;
+    @GetMapping("/getJobsByStatus")
+    public List<CateringJob> getCateringJobsByStatus(@RequestParam Status status) {
+        return cateringJobRepository.findByStatus(status);
     }
 
-    public CateringJob createCateringJob(CateringJob job) {
-        return null;
+    @PostMapping
+    @ResponseBody
+    public CateringJob createCateringJob(@RequestBody CateringJob job) {
+        return cateringJobRepository.save(job);
     }
 
-    public CateringJob updateCateringJob(CateringJob cateringJob, Long id) {
-        return null;
+    @PutMapping("/{id}")
+    public CateringJob updateCateringJob(@RequestBody CateringJob cateringJob,
+                                         @PathVariable Long id) {
+        if(cateringJobRepository.existsById(id)) {
+            cateringJob.setId(id);
+            return cateringJobRepository.save(cateringJob);
+        } else {
+            throw new HttpClientErrorException(HttpStatus.NOT_FOUND);
+        }
     }
 
-    public CateringJob patchCateringJob(Long id, JsonNode json) {
-        return null;
+    @PatchMapping("/{id}")
+    @ResponseBody
+    public CateringJob patchCateringJob(@PathVariable Long id, @RequestBody JsonNode json) {
+        Optional<CateringJob> optionalCateringJob = cateringJobRepository.findById(id);
+        if(optionalCateringJob.isPresent()) {
+            CateringJob job = optionalCateringJob.get();
+            JsonNode menu = json.get("menu");
+            if(menu == null)
+                throw new HttpClientErrorException(HttpStatus.BAD_REQUEST);
+            job.setMenu(menu.asText());
+            return cateringJobRepository.save(job);
+        } else {
+            throw new HttpClientErrorException(HttpStatus.NOT_FOUND);
+        }
     }
 
+    @ExceptionHandler(HttpClientErrorException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    String handleClientException() {
+        return "Id not found, please try with a different id.";
+    }
+
+    @GetMapping(path = "surpriseImage")
+    @ResponseBody
     public Mono<String> getSurpriseImage() {
-        return null;
+
+        return client.get().uri("/api").retrieve().bodyToMono(String.class);
     }
 }
